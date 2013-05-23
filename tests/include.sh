@@ -77,7 +77,7 @@ cleanup()
 	case $CSYNC2_DATABASE in
 		sqlite://*|sqlite2://*|sqlite3://*|/*)
 			mkdir -p "$CSYNC2_DATABASE/"
-			rm -f "$CSYNC2_DATABASE/"*.csync2.test.db*
+			rm -f "$CSYNC2_DATABASE/"*.csync2.test*.db*
 			;;
 		pgsql://csync2:csync2@*/)
 			host=${CSYNC2_DATABASE#pgsql://csync2:csync2@}
@@ -273,26 +273,52 @@ require()
 
 csync2_u()
 {
-	if csync2 -N $1 -M > /dev/null; then
-		csync2 -N $2 -iii -vvv &
-		kid=$!
+        # csync2_u HOST1[:CONF1] HOST2[:CONF2] ...
+        local H1
+        local C1
+        local H
+        local C
+        local kids
+        local client_exit
+        local nc_exit
+        local server_exit
+        local tmp
 
-		csync2 -N $1 -uvvv
+        H1=${1/:*/}
+        C1=${1/*:/}
+        [ "$C1" == "$H1" ] && unset C1
+        shift
+	if csync2 ${C1:+-C $C1} -N $H1 -M > /dev/null; then
+                kids=""
+		for REMOTE in "$@" ; do
+			H=${REMOTE/:*/}
+			C=${REMOTE/*:/}
+			[ "$C" == "$H" ] && unset C
+			csync2 ${C:+-C $C} -N $H -iii -vvv &
+			kids="$kids $!"
+                        shift # only to avoid accidental later references
+                done
+                sleep 0.01 # if parent runs first, child may not listen in time
+
+		csync2 ${C1:+-C $C1} -N $H1 -uvvv
 		client_exit=$?
 
 		# server still alive?
 		# then no connection was made...
 		# attempt do one now.
-		tmp=$(nc $2 $CSYNC2_PORT <<<"BYE" )
+		tmp=$(nc $H $CSYNC2_PORT <<<"BYE" )
 		nc_exit=$?
 
-		wait $kid
-		server_exit=$?
+                server_exit=0
+                for kid in $kids ; do
+                    wait $kid
+                    server_exit=$(( $? + $server_exit ))
+                done
 		[[ $client_exit = 0 && $server_exit = 0 && $nc_exit != 0 ]]
 	else
-		echo "Apparently nothing dirty on $1, not starting server on $2" 
+		echo "Apparently nothing dirty on $H1, not starting server(s) on $*" 
 		# but still do the csync2 -u ...
-		csync2 -N $1 -uvvv
+		csync2 ${C1:+-C $C1} -N $H1 -uvvv
 	fi
 }
 
