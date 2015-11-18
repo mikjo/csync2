@@ -46,9 +46,6 @@ The latest version of the csync2 documentation can be found online at
 
 You should definitely read the documentation before trying to setup csync2.
 
-The TeX source of the paper (as well as some slides for csync2 presentations)
-can be found at http://git.linbit.com/csync2.git/doc/csync2_paper.tex
-
 The csync2 releases also have a copy of the 'paper.pdf' file
 (and the TeX source) bundled in the csync2 source tarball.
 
